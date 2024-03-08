@@ -3,8 +3,8 @@ import os
 from pathlib import Path
 from .utils.materials import create_unique_material
 from .utils.catalog import get_or_create_catalog
-from .utils.parsing import format_material_name
-from .utils.materials import match_files_to_socket_names, create_octane_texture_node, connect_texture_to_material
+from .utils.parsing import format_material_name, find_textures
+from .utils.materials import create_octane_texture_node, connect_texture_to_material
 
 class CUSTOM_OT_GenerateShaderCatalog(bpy.types.Operator):
     bl_idname = "custom.generate_catalogs"
@@ -42,9 +42,8 @@ class CUSTOM_OT_GenerateShaderCatalog(bpy.types.Operator):
                 mat = create_unique_material(formatted_name)
 
                 # Find texture files and create Octane texture nodes
-                textures = self.find_textures(os.path.join(root, name))
+                textures = find_textures(os.path.join(root, name))
                 for texture in textures:
-                    print(texture)
                     tex_node = create_octane_texture_node(texture)
                     connect_texture_to_material(mat, tex_node)
 
@@ -58,8 +57,6 @@ class CUSTOM_OT_GenerateShaderCatalog(bpy.types.Operator):
                 if use_tags:
                     for tag in tags:
                         mat.asset_data.tags.new(tag, skip_if_exists=True)
-
-            self.report({'INFO'}, f"Created new material: {mat.name}" + (f", catalog ID: {catalog_id}" if use_catalog_tree and catalog_id else ""))
 
 class CUSTOM_PT_GenerateCatalogsPanel(bpy.types.Panel):
     bl_label = "Octane Catalog Generator"
