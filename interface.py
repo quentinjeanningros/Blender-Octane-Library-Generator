@@ -47,9 +47,9 @@ class CUSTOM_OT_GenerateShaderCatalog(bpy.types.Operator):
         }
 
         settings = {
-            "default_texture_setup": bpy.context.scene.default_texture_setup,
-            "setup_displacement": bpy.context.scene.texture_setup_displacement,
-            "setup_default_gamma": bpy.context.scene.texture_setup_default_gamma
+            "texture_setup": bpy.context.scene.default_texture_setup,
+            "displacement": bpy.context.scene.texture_setup_displacement,
+            "gamma": bpy.context.scene.texture_setup_default_gamma
         }
 
         folder_name = format_material_name(os.path.basename(folder_path))

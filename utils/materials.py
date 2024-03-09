@@ -2,6 +2,7 @@ import bpy
 import os
 from pathlib import Path
 from .parsing import match_files_to_keys, fetch_files_at_path
+from .constants import OCTANE_NODE, UNIVERSAL_MATERIAL_SOCKET, IMAGE_TEXTURE_SOCKET, MULTIPLY_TEXTURE_SOCKET, TRANSFORM_SOCKET
 
 GAP = 300
 
@@ -31,21 +32,29 @@ def create_empty_material(mat_name):
         nodes.remove(node)
 
     # Add an OctaneUniversalMaterial node
-    universal_node = nodes.new('OctaneUniversalMaterial')
+    universal_node = nodes.new(OCTANE_NODE['UniversalMaterial'])
     universal_node.location = (0, 0)
 
-    output_node = nodes.new(type='ShaderNodeOutputMaterial')
+    output_node = nodes.new(OCTANE_NODE['MaterialOutput'])
     output_node.location = (GAP, 0)
     create_link(links, universal_node, 'Material out', output_node, 'Surface')
-    return {'material': mat, 'nodes': nodes, 'links': links}
+    return {'material': mat, 'nodes': nodes, 'links': links, 'universal': universal_node, 'output': output_node}
 
 
-def create_texture_node(nodes, texture_type, texture_path, location):
-    texture_node = nodes.new('OctaneRGBImage')
+def create_texture_node(nodes, texture_type, texture_path, location, gamma = 2.2):
+    # Check if the texture is already loaded
+    image = next((img for img in bpy.data.images if img.filepath == texture_path), None)
+
+    # If the texture is not loaded, load it
+    if image is None:
+        image = bpy.data.images.load(texture_path)
+
+    texture_node = nodes.new(OCTANE_NODE['ImageTexture'])
     texture_node.location = location
     texture_node.label = texture_type
     texture_node.name = texture_type
-    texture_node.image = bpy.data.images.load(texture_path)
+    texture_node.inputs[IMAGE_TEXTURE_SOCKET['Gamma']].default_value = float(gamma)
+    texture_node.image = image
     return texture_node
 
 
@@ -83,8 +92,9 @@ def create_material(mat_name, keys, settings, folder_path):
     mat = data['material']
     nodes = data['nodes']
     links = data['links']
+    universal_node = data['universal']
 
-    transform_node = nodes.new('OctaneTransformValue')
+    transform_node = nodes.new(OCTANE_NODE['3DTransform'])
     transform_node.location = (-GAP*2, 0)
 
     for i, s in enumerate(sockets):
@@ -93,9 +103,9 @@ def create_material(mat_name, keys, settings, folder_path):
         texture_path = os.path.join(folder_path, texture_files[0])
 
         if texture_type == 'Albedo':
-            texture_node = create_texture_node(nodes, texture_type, texture_path, (-GAP, GAP * i))
-            create_link(links, texture_node, 'Texture out', transform_node, 'Albedo')
-
+            texture_node = create_texture_node(nodes, texture_type, texture_path, (-GAP, GAP * i), settings['gamma'])
+            create_link(links, transform_node, TRANSFORM_SOCKET['Out'], texture_node, IMAGE_TEXTURE_SOCKET['Transform'])
+            create_link(links, texture_node, IMAGE_TEXTURE_SOCKET['Out'], universal_node, UNIVERSAL_MATERIAL_SOCKET['Albedo'])
 
     nodes.update()
     links.update()
