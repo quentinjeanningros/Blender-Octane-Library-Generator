@@ -1,5 +1,6 @@
 import uuid
 import bpy
+import os
 from .parsing import format_material_name
 from pathlib import Path
 
@@ -44,3 +45,10 @@ def get_or_create_catalog(full_path, base_path):
             new_uuid = str(uuid.uuid4())
             file.write(f"{new_uuid}:{formatted_path}\n")
             return new_uuid
+
+def set_material_preview_with_operator(context, material, image_path):
+    # Prepare the override context for the material
+    override = context.copy()
+    override["id"] = material
+    with context.temp_override(**override):
+        bpy.ops.ed.lib_id_load_custom_preview( filepath=image_path)

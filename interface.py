@@ -4,8 +4,7 @@ from pathlib import Path
 from bpy.props import BoolProperty, StringProperty, EnumProperty, FloatProperty
 from .utils.materials import create_material
 from .utils.parsing import format_material_name
-from .utils.catalog import get_or_create_catalog
-from .utils.parsing import format_material_name
+from .utils.catalog import get_or_create_catalog, set_material_preview_with_operator
 
 class CUSTOM_OT_GenerateShaderCatalog(bpy.types.Operator):
     bl_idname = "custom.generate_catalogs"
@@ -48,7 +47,9 @@ class CUSTOM_OT_GenerateShaderCatalog(bpy.types.Operator):
 
         settings = {
             "texture_setup": bpy.context.scene.default_texture_setup,
-            "displacement": bpy.context.scene.texture_setup_displacement,
+            "displacement_type": bpy.context.scene.texture_setup_displacement,
+            "displacement_midlevel": bpy.context.scene.displacement_mid_level,
+            "displacement_height": bpy.context.scene.displacement_height,
             "gamma": bpy.context.scene.texture_setup_default_gamma
         }
 
@@ -56,7 +57,15 @@ class CUSTOM_OT_GenerateShaderCatalog(bpy.types.Operator):
         if folder_path.endswith('\\') or folder_path.endswith('/'):
             folder_name = format_material_name(os.path.basename(folder_path[:-1]))
         formatted_name = format_material_name(folder_name)
-        mat = create_material(formatted_name, texture_naming_conventions, settings, folder_path)
+        data = create_material(formatted_name, texture_naming_conventions, settings, folder_path)
+        if data:
+            mat = data['material']
+            if mat:
+                mat.use_fake_user = True
+                mat.asset_mark()
+                preview_image_path = data['albedo']
+                if mat and preview_image_path:
+                    set_material_preview_with_operator(bpy.context, mat, preview_image_path)
 
         for root, dirs, _ in os.walk(folder_path, topdown=True):
             if use_tags:
@@ -66,7 +75,10 @@ class CUSTOM_OT_GenerateShaderCatalog(bpy.types.Operator):
             for name in dirs:
                 path = os.path.join(root, name)
                 formatted_name = format_material_name(name)
-                mat = create_material(formatted_name, texture_naming_conventions, settings, path)
+                data = create_material(formatted_name, texture_naming_conventions, settings, path)
+                if not data:
+                    continue
+                mat = data['material']
                 if not mat:
                     continue
 
@@ -82,6 +94,11 @@ class CUSTOM_OT_GenerateShaderCatalog(bpy.types.Operator):
                 if use_tags:
                     for tag in tags:
                         mat.asset_data.tags.new(tag, skip_if_exists=True)
+
+                preview_image_path = data['albedo']
+                if mat and preview_image_path:
+                    set_material_preview_with_operator(bpy.context, mat, preview_image_path)
+
 
 
 
@@ -131,6 +148,8 @@ class CUSTOM_PT_GenerateCatalogsPanel(bpy.types.Panel):
         box = layout.box()
         box.prop(scene, "default_texture_setup", text="If both available, use")
         box.prop(scene, "texture_setup_displacement", text="Texture Setup Displacement")
+        box.prop(scene, "displacement_mid_level", text="Displacement Mid Level")
+        box.prop(scene, "displacement_height", text="Displacement Height")
         box.prop(scene, "texture_setup_default_gamma", text="Texture Setup Default Gamma")
 
         layout.separator()
@@ -207,10 +226,10 @@ def register_ui():
     bpy.types.Scene.texture_setup_displacement = EnumProperty(
         name="Shader's texture setup displacement",
         items=(
-            ("OctaneTextureDisplacement", "Texture Displacement", "Setup node will use Texture Displacement node"),
-            ("OctaneVertexDisplacement", "Vertex Displacement", "Setup node will use Vertex Displacement node")
+            ("TextureDisplacement", "Texture Displacement", "Setup node will use Texture Displacement node"),
+            ("VertexDisplacement", "Vertex Displacement", "Setup node will use Vertex Displacement node")
         ),
-        default='OctaneTextureDisplacement',
+        default='TextureDisplacement',
         description="When setup textures for shader, for displacement it'll use this node"
     )
     bpy.types.Scene.texture_setup_default_gamma = FloatProperty(
@@ -218,6 +237,18 @@ def register_ui():
         default=2.2,
         min=0.0,
         description="When setup textures for shader, it'll use this gamma for all textures"
+    )
+    bpy.types.Scene.displacement_mid_level = FloatProperty(
+        name="Displacement Mid Level",
+        default=0.1,
+        min=0.0,
+        description="When displacement is used, it'll use this mid level for all textures"
+    )
+    bpy.types.Scene.displacement_height = FloatProperty(
+        name="Displacement Height",
+        default=0.1,
+        min=0.0,
+        description="When displacement is used, it'll use this height for all textures"
     )
     bpy.types.Scene.transmission = StringProperty(
         name="Transmission",
