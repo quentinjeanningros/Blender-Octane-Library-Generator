@@ -1,10 +1,11 @@
 import bpy
 import os
 from pathlib import Path
-from bpy.props import BoolProperty, StringProperty, EnumProperty, FloatProperty
+from bpy.props import IntProperty, BoolProperty, StringProperty, EnumProperty, FloatProperty, PointerProperty
 from .utils.materials import create_materials_according_settings
 from .utils.parsing import format_material_name
 from .utils.catalog import get_or_create_catalog, set_material_preview_with_operator
+from .utils.render import render_and_save
 
 class CUSTOM_OT_GenerateShaderCatalog(bpy.types.Operator):
     bl_idname = "custom.generate_catalogs"
@@ -24,6 +25,14 @@ class CUSTOM_OT_GenerateShaderCatalog(bpy.types.Operator):
         if not os.path.isdir(selected_folder):
             self.report({'ERROR'}, "Selected folder is not valid.")
             return {'CANCELLED'}
+
+        if bpy.context.scene.preview_type == 'Render':
+            if not bpy.context.scene.object_mock:
+                self.report({'ERROR'}, "Please select an object to mock.")
+                return {'CANCELLED'}
+            if bpy.context.scene.object_mock.type != 'MESH':
+                self.report({'ERROR'}, "Selected object is not a mesh.")
+                return {'CANCELLED'}
 
         self.create_shaders_tree(selected_folder)
         return {'FINISHED'}
@@ -46,8 +55,21 @@ class CUSTOM_OT_GenerateShaderCatalog(bpy.types.Operator):
                 mat.asset_data.tags.new(tag, skip_if_exists=True)
 
             preview_image_path = data['albedo']
-            if mat and preview_image_path:
+            if settings['preview_type'] == 'UseColorMap' and preview_image_path:
                 set_material_preview_with_operator(bpy.context, mat, preview_image_path)
+
+            elif settings['preview_type'] == 'Render':
+                preview_path = os.path.join(folder_path, "preview.png")
+                preview_exist = os.path.exists(preview_path)
+                if not preview_exist or bpy.context.scene.force_rerender:
+                    obj = bpy.context.scene.object_mock
+                    if obj.data.materials:
+                        obj.data.materials[0] = mat
+                    else:
+                        obj.data.materials.append(mat)
+                    render_and_save(folder_path, "preview", bpy.context.scene.resolution_x, bpy.context.scene.resolution_y)
+                set_material_preview_with_operator(bpy.context, mat, preview_path)
+
 
             mat_array.append(mat)
 
@@ -155,8 +177,18 @@ class CUSTOM_PT_GenerateCatalogsPanel(bpy.types.Panel):
         box.prop(scene, "displacement_mid_level", text="Displacement Mid Level")
         box.prop(scene, "displacement_height", text="Displacement Height")
         box.prop(scene, "texture_setup_default_gamma", text="Setup Gamma")
-        box.prop(scene, "preview_type", text="Preview Type")
 
+        layout.separator()
+
+        layout.label(text="Preview:")
+        box = layout.box()
+        box.prop(scene, "preview_type", text="Preview Type")
+        if scene.preview_type == 'Render':
+            box.prop(scene, "object_mock", text="Lock to Object")
+            box.prop(scene, "force_rerender", text="Render preview even if it exists")
+            box.prop(scene, "resolution_x", text="Resolution X")
+            box.prop(scene, "resolution_y", text="Resolution Y")
+            box.label(text="Warning: Be sure to check alpha render")
         layout.separator()
 
         # UI for texture naming conventions
@@ -293,6 +325,29 @@ def register_ui():
         default='Render',
         description="How to set the preview image for the material"
     )
+    bpy.types.Scene.object_mock = PointerProperty(
+        name="Object Mock",
+        type=bpy.types.Object
+    )
+    bpy.types.Scene.force_rerender = BoolProperty(
+        name="Force re-render preview",
+        description="Force re-render the preview image for the material",
+        default=False
+    )
+    bpy.types.Scene.resolution_x = IntProperty(
+        name="Resolution X",
+        default=200,
+        min=1,
+        description="Resolution X for the preview render",
+        subtype='PIXEL'
+    )
+    bpy.types.Scene.resolution_y = IntProperty(
+        name="Resolution X",
+        default=200,
+        min=1,
+        description="Resolution X for the preview render",
+        subtype='PIXEL'
+    )
     bpy.types.Scene.transmission = StringProperty(
         name="Transmission",
         default="transmission transparency",
@@ -371,6 +426,10 @@ def unregister_ui():
     del bpy.types.Scene.displacement_height
     del bpy.types.Scene.texture_setup_default_gamma
     del bpy.types.Scene.preview_type
+    del bpy.types.Scene.object_mock
+    del bpy.types.Scene.force_rerender
+    del bpy.types.Scene.resolution_x
+    del bpy.types.Scene.resolution_y
     del bpy.types.Scene.transmission
     del bpy.types.Scene.albedo
     del bpy.types.Scene.metallic

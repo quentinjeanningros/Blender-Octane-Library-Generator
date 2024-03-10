@@ -47,7 +47,6 @@ def create_texture_node(nodes, texture_type, texture_path, location, gamma = 2.2
         image = bpy.data.images.load(texture_path)
 
     texture_node = nodes.new(OCTANE_NODE['ImageTexture'])
-    print(location)
     texture_node.location = location
     texture_node.label = texture_type
     texture_node.name = texture_type
