@@ -12,12 +12,12 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 bl_info = {
-    "name": "Generate Catalogs from Selected Folders",
+    "name": "Generate Catalogs",
     "author": "Quentin JEANNINROS",
     "description": "Generate catalogs based on selected folders",
     "blender": (4, 0, 0),
     "version": (1, 0, 0),
-    "category": "Generic",
+    "category": "Octane Render",
 }
 
 from .interface import register_ui, unregister_ui
