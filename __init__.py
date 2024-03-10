@@ -13,7 +13,7 @@
 
 bl_info = {
     "name": "Generate Catalogs from Selected Folders",
-    "author": "Your Name",
+    "author": "Quentin JEANNINROS",
     "description": "Generate catalogs based on selected folders",
     "blender": (4, 0, 0),
     "version": (1, 0, 0),
