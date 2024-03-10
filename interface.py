@@ -275,7 +275,7 @@ def register_ui():
             ("First", "Take the first one", "Use the first color map found"),
             ("Last", "Take the last one", "Use the last color map found"),
         ),
-        default='NewMaterial',
+        default='NewNode',
         description="What happens when multiple color maps are found"
     )
     bpy.types.Scene.default_texture_setup = EnumProperty(
