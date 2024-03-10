@@ -47,6 +47,7 @@ def create_texture_node(nodes, texture_type, texture_path, location, gamma = 2.2
         image = bpy.data.images.load(texture_path)
 
     texture_node = nodes.new(OCTANE_NODE['ImageTexture'])
+    print(location)
     texture_node.location = location
     texture_node.label = texture_type
     texture_node.name = texture_type
@@ -54,8 +55,105 @@ def create_texture_node(nodes, texture_type, texture_path, location, gamma = 2.2
     texture_node.image = image
     return texture_node
 
+def create_appropriate_node(texture_type, links, nodes, transform_node, universal_node, texture_path, settings, position_shift = (0, 0)):
+    node_pos = (NODE_POSITION[texture_type][0] + position_shift[0], NODE_POSITION[texture_type][1] + position_shift[1])
+    gamma = settings['gamma']
+    if texture_type == 'Transmission' or texture_type == 'Albedo' or texture_type == 'Metallic' or texture_type == 'Specular' or texture_type == 'Roughness' or texture_type == 'Opacity' or texture_type == 'Bump' or texture_type == 'Normal':
+        texture_node = create_texture_node(nodes, texture_type, texture_path, node_pos, gamma)
+        create_link(links, transform_node, TRANSFORM_SOCKET['Out'], texture_node, IMAGE_TEXTURE_SOCKET['Transform'])
+        link = create_link(links, texture_node, IMAGE_TEXTURE_SOCKET['Out'], universal_node, UNIVERSAL_MATERIAL_SOCKET[texture_type])
+        return {'node': texture_node, 'link': link}
+    elif texture_type == 'Ambient Occlusion':
+        ao_node = create_texture_node(nodes, texture_type, texture_path, node_pos, gamma)
+        create_link(links, transform_node, TRANSFORM_SOCKET['Out'], ao_node, IMAGE_TEXTURE_SOCKET['Transform'])
+        link = create_link(links, ao_node, IMAGE_TEXTURE_SOCKET['Out'], universal_node, UNIVERSAL_MATERIAL_SOCKET['Albedo'])
+        return {'node': ao_node, 'link': link}
+    elif texture_type == 'Displacement':
+        displacement_node = nodes.new(OCTANE_NODE[settings['displacement_type']])
+        displacement_node.location = (NODE_POSITION['DisplacementNode'][0] + position_shift[0], NODE_POSITION['DisplacementNode'][1] + position_shift[1])
+        displacement_node.inputs[DISPLACEMENT_SOCKET['Midlevel']].default_value = settings['displacement_midlevel']
+        displacement_node.inputs[DISPLACEMENT_SOCKET['Height']].default_value = settings['displacement_height']
+        texture_node = create_texture_node(nodes, texture_type, texture_path, node_pos, gamma)
+        create_link(links, transform_node, TRANSFORM_SOCKET['Out'], texture_node, IMAGE_TEXTURE_SOCKET['Transform'])
+        create_link(links, texture_node, IMAGE_TEXTURE_SOCKET['Out'], displacement_node, DISPLACEMENT_SOCKET['Texture'])
+        displacement_link  = create_link(links, displacement_node, DISPLACEMENT_SOCKET['Out'], universal_node, UNIVERSAL_MATERIAL_SOCKET['Displacement'])
+        return {'node': displacement_node, 'link': displacement_link}
+    elif texture_type == 'Emission':
+        emission_node = nodes.new(OCTANE_NODE['TextureEmission'])
+        emission_node.location = (NODE_POSITION['EmissionNode'][0] + position_shift[0], NODE_POSITION['EmissionNode'][1] + position_shift[1])
+        texture_node = create_texture_node(nodes, texture_type, texture_path, node_pos, gamma)
+        create_link(links, transform_node, TRANSFORM_SOCKET['Out'], texture_node, IMAGE_TEXTURE_SOCKET['Transform'])
+        create_link(links, texture_node, IMAGE_TEXTURE_SOCKET['Out'], emission_node, TEXTURE_EMISSION_SOCKET['Texture'])
+        link = create_link(links, emission_node, TEXTURE_EMISSION_SOCKET['Out'], universal_node, UNIVERSAL_MATERIAL_SOCKET['Emission'])
+        return {'node': emission_node, 'link': link}
 
-def create_material(mat_name, keys, settings, folder_path):
+def create_material_nodes(name, sockets, settings):
+    data = create_empty_material(name)
+    mat = data['material']
+    nodes = data['nodes']
+    links = data['links']
+    universal_node = data['universal']
+
+    transform_node = nodes.new(OCTANE_NODE['3DTransform'])
+    transform_node.location = NODE_POSITION['3DTransform']
+
+    albedo_nodes = []
+    albedo_text = None
+    ao_node = None
+    displacement_link = None
+    bump_link = None
+
+    for s in sockets:
+        texture_type = s['type']
+        texture_path = s['paths'][0]
+
+        node_groupe = None
+        if texture_type == 'Albedo':
+            for index, path in enumerate(s['paths']):
+                position_shift = (0, 50 * index)
+                groupe = create_appropriate_node(texture_type, links, nodes, transform_node, universal_node, path, settings, position_shift)
+                node = groupe['node']
+                if index == 0:
+                    albedo_text = path
+                else :
+                    node.hide = True
+                node.name = node.name + ' Alt-' + str(index + 1)
+                node.label = node.label + ' Alt-' + str(index + 1)
+                albedo_nodes.append(node)
+            create_link(links, albedo_nodes[0], IMAGE_TEXTURE_SOCKET['Out'], universal_node, UNIVERSAL_MATERIAL_SOCKET['Albedo'])
+
+        else :
+            node_groupe = create_appropriate_node(texture_type, links, nodes, transform_node, universal_node, texture_path, settings)
+            texture_node = node_groupe['node']
+            texture_link = node_groupe['link']
+            if texture_type == 'Ambient Occlusion':
+                ao_node = texture_node
+            elif texture_type == 'Bump':
+                bump_link = texture_link
+            elif texture_type == 'Displacement':
+                displacement_link = texture_node
+
+    if ao_node and len(albedo_nodes) >= 1:
+        multiply_node = nodes.new(OCTANE_NODE['MultiplyTexture'])
+        multiply_node.location = NODE_POSITION['MultiplyNode']
+        for albedo_node in albedo_nodes:
+            albedo_node.location = (albedo_node.location[0] - GAP + 50, albedo_node.location[1] + 50)
+        ao_node.location = (ao_node.location[0] - GAP * 2 + 100, ao_node.location[1] + 150)
+        create_link(links, albedo_nodes[0], IMAGE_TEXTURE_SOCKET['Out'], multiply_node, MULTIPLY_TEXTURE_SOCKET['In1'])
+        create_link(links, ao_node, IMAGE_TEXTURE_SOCKET['Out'], multiply_node, MULTIPLY_TEXTURE_SOCKET['In2'])
+        create_link(links, multiply_node, MULTIPLY_TEXTURE_SOCKET['Out'], universal_node, UNIVERSAL_MATERIAL_SOCKET['Albedo'])
+
+    if bump_link and displacement_link:
+        if settings['texture_setup'] == 'Displacement':
+            links.remove(bump_link)
+        elif settings['texture_setup'] == 'Bump':
+            links.remove(displacement_link)
+
+    nodes.update()
+    links.update()
+    return {'material': mat, 'albedo': albedo_text}
+
+def create_materials_according_settings(mat_name, keys, settings, folder_path):
     sockets = [
         ['Transmission', keys['transmission'], []],
         ['Albedo', keys['albedo'], []],
@@ -73,7 +171,7 @@ def create_material(mat_name, keys, settings, folder_path):
     all_keys = set()
     for k in keys.values():
         all_keys.update(k)
-    files_with_keys = match_files_to_keys(fetch_files_at_path(folder_path), all_keys)
+    files_with_keys = match_files_to_keys(fetch_files_at_path(folder_path, settings['file_types']), all_keys)
 
     for s in sockets:
         for f, k in files_with_keys.items():
@@ -82,79 +180,65 @@ def create_material(mat_name, keys, settings, folder_path):
                     s[2].append(f)
 
 
-    # Remove sockets without found files
-    sockets = [s for s in sockets if s[2]]
+    clean_sockets = []
+    for item in sockets:
+        if item[2]:
+            new_item = {'type' :item[0], 'paths' : []}
+            for path in item[2]:
+                new_item['paths'].append(os.path.join(folder_path, path))
+            clean_sockets.append(new_item)
 
-    if not sockets:
-        return None
+    if not clean_sockets:
+        return []
 
-    data = create_empty_material(mat_name)
-    mat = data['material']
-    nodes = data['nodes']
-    links = data['links']
-    universal_node = data['universal']
+    def get_file_type_order(path):
+        for file_type in settings['file_types']:
+            if path.endswith(file_type):
+                return settings['file_types'].index(file_type)
+        return len(settings['file_types'])
 
-    transform_node = nodes.new(OCTANE_NODE['3DTransform'])
-    transform_node.location = NODE_POSITION['3DTransform']
+    ordered_sockets = []
+    if settings['resolution_priority'] == 'FileType':
+        for item in clean_sockets:
+            sorted_paths = sorted(item['paths'], key=get_file_type_order)
+            ordered_sockets.append({'type' : item['type'], 'paths' : sorted_paths})
+    elif settings['resolution_priority'] == 'SmallerRes':
+        for item in clean_sockets:
+            sorted_paths = sorted(item['paths'], key=lambda x: Path(x).stat().st_size)
+            ordered_sockets.append({'type' : item['type'], 'paths' : sorted_paths})
+    elif settings['resolution_priority'] == 'BiggerRes':
+        for item in clean_sockets:
+            sorted_paths = sorted(item['paths'], key=lambda x: Path(x).stat().st_size, reverse=True)
+            ordered_sockets.append({'type' : item['type'], 'paths' : sorted_paths})
+    else:
+        ordered_sockets = clean_sockets
 
-    albedo_node = None
-    albedo_text = None
-    ao_node = None
-    displacement_link = None
-    bump_link = None
 
-    for i, s in enumerate(sockets):
-        texture_type = s[0]
-        texture_files = s[2]
-        texture_path = os.path.join(folder_path, texture_files[0])
+    data_array = []
+    # Find all 'Albedo' items in ordered_sockets
+    albedo_paths = [path for item in ordered_sockets if item['type'] == 'Albedo' for path in item['paths']]
+    if len(albedo_paths) > 1 and settings['alt_col_handling'] == 'NewMaterial':
+        # For each 'Albedo' item, append a new list to socket_lists that contains only this item
+        for index, path in enumerate(albedo_paths):
+            unique_sockets = [i.copy() for i in ordered_sockets]
+            for socket in unique_sockets:
+                if socket['type'] == 'Albedo':
+                    socket['paths'] = [path]
+            unique_name = mat_name + ' Alt-' + str(index+1)
+            data = create_material_nodes(unique_name, unique_sockets, settings)
+            data_array.append(data)
+    elif len(albedo_paths) > 1 and settings['alt_col_handling'] == 'First':
+        ordered_sockets = [i for i in ordered_sockets if i['type'] != 'Albedo']
+        ordered_sockets.append({'type' : 'Albedo', 'paths' : [albedo_paths[0]]})
+        data = create_material_nodes(mat_name, ordered_sockets, settings)
+        data_array.append(data)
+    elif len(albedo_paths) > 1 and settings['alt_col_handling'] == 'Last':
+        ordered_sockets = [i for i in ordered_sockets if i['type'] != 'Albedo']
+        ordered_sockets.append({'type' : 'Albedo', 'paths' : [albedo_paths[-1]]})
+        data = create_material_nodes(mat_name, ordered_sockets, settings)
+        data_array.append(data)
+    else :
+        data = create_material_nodes(mat_name, ordered_sockets, settings)
+        data_array.append(data)
 
-        if texture_type == 'Transmission' or texture_type == 'Albedo' or texture_type == 'Metallic' or texture_type == 'Specular' or texture_type == 'Roughness' or texture_type == 'Opacity' or texture_type == 'Bump' or texture_type == 'Normal':
-            texture_node = create_texture_node(nodes, texture_type, texture_path, NODE_POSITION[texture_type], settings['gamma'])
-            create_link(links, transform_node, TRANSFORM_SOCKET['Out'], texture_node, IMAGE_TEXTURE_SOCKET['Transform'])
-            link = create_link(links, texture_node, IMAGE_TEXTURE_SOCKET['Out'], universal_node, UNIVERSAL_MATERIAL_SOCKET[texture_type])
-            if texture_type == 'Albedo':
-                albedo_text = texture_path
-                albedo_node = texture_node
-            if texture_type == 'Bump':
-                bump_link = link
-        elif texture_type == 'Ambient Occlusion':
-            ao_node = create_texture_node(nodes, texture_type, texture_path, NODE_POSITION[texture_type], settings['gamma'])
-            create_link(links, transform_node, TRANSFORM_SOCKET['Out'], ao_node, IMAGE_TEXTURE_SOCKET['Transform'])
-            create_link(links, ao_node, IMAGE_TEXTURE_SOCKET['Out'], universal_node, UNIVERSAL_MATERIAL_SOCKET['Albedo'])
-        elif texture_type == 'Displacement':
-            displacement_node = nodes.new(OCTANE_NODE[settings['displacement_type']])
-            displacement_node.location = NODE_POSITION['DisplacementNode']
-            displacement_node.inputs[DISPLACEMENT_SOCKET['Midlevel']].default_value = settings['displacement_midlevel']
-            displacement_node.inputs[DISPLACEMENT_SOCKET['Height']].default_value = settings['displacement_height']
-            texture_node = create_texture_node(nodes, texture_type, texture_path, NODE_POSITION[texture_type], settings['gamma'])
-            create_link(links, transform_node, TRANSFORM_SOCKET['Out'], texture_node, IMAGE_TEXTURE_SOCKET['Transform'])
-            create_link(links, texture_node, IMAGE_TEXTURE_SOCKET['Out'], displacement_node, DISPLACEMENT_SOCKET['Texture'])
-            displacement_link  = create_link(links, displacement_node, DISPLACEMENT_SOCKET['Out'], universal_node, UNIVERSAL_MATERIAL_SOCKET['Displacement'])
-        elif texture_type == 'Emission':
-            emission_node = nodes.new(OCTANE_NODE['TextureEmission'])
-            emission_node.location = NODE_POSITION['EmissionNode']
-            texture_node = create_texture_node(nodes, texture_type, texture_path, NODE_POSITION[texture_type], settings['gamma'])
-            create_link(links, transform_node, TRANSFORM_SOCKET['Out'], texture_node, IMAGE_TEXTURE_SOCKET['Transform'])
-            create_link(links, texture_node, IMAGE_TEXTURE_SOCKET['Out'], emission_node, TEXTURE_EMISSION_SOCKET['Texture'])
-            create_link(links, emission_node, TEXTURE_EMISSION_SOCKET['Out'], universal_node, UNIVERSAL_MATERIAL_SOCKET['Emission'])
-
-    if ao_node and albedo_node:
-        multiply_node = nodes.new(OCTANE_NODE['MultiplyTexture'])
-        multiply_node.location = NODE_POSITION['MultiplyNode']
-        albedo_node.location = (albedo_node.location[0] - GAP + 50, albedo_node.location[1] + 50)
-        ao_node.location = (ao_node.location[0] - GAP * 2 + 100, ao_node.location[1] + 150)
-        create_link(links, albedo_node, IMAGE_TEXTURE_SOCKET['Out'], multiply_node, MULTIPLY_TEXTURE_SOCKET['In1'])
-        create_link(links, ao_node, IMAGE_TEXTURE_SOCKET['Out'], multiply_node, MULTIPLY_TEXTURE_SOCKET['In2'])
-        create_link(links, multiply_node, MULTIPLY_TEXTURE_SOCKET['Out'], universal_node, UNIVERSAL_MATERIAL_SOCKET['Albedo'])
-
-    if bump_link and displacement_link:
-        print( settings['displacement_type'])
-        if settings['texture_setup'] == 'Displacement':
-            print('Removing bump link')
-            links.remove(bump_link)
-        elif settings['texture_setup'] == 'Bump':
-            links.remove(displacement_link)
-
-    nodes.update()
-    links.update()
-    return {'material': mat, 'albedo': albedo_text}
+    return data_array

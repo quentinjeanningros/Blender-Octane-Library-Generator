@@ -2,7 +2,7 @@ import bpy
 import os
 from pathlib import Path
 from bpy.props import BoolProperty, StringProperty, EnumProperty, FloatProperty
-from .utils.materials import create_material
+from .utils.materials import create_materials_according_settings
 from .utils.parsing import format_material_name
 from .utils.catalog import get_or_create_catalog, set_material_preview_with_operator
 
@@ -28,9 +28,35 @@ class CUSTOM_OT_GenerateShaderCatalog(bpy.types.Operator):
         self.create_shaders_tree(selected_folder)
         return {'FINISHED'}
 
+    def create_assets(self, name, folder_path, texture_naming_conventions, settings, catalog_id ,tags):
+        formatted_name = format_material_name(name)
+        data_array = create_materials_according_settings(formatted_name, texture_naming_conventions, settings, folder_path)
+        mat_array = []
+        for data in data_array:
+            mat = data['material']
+            if not mat:
+                return None
+            mat.use_fake_user = True
+            mat.asset_mark()
+
+            if catalog_id:
+                mat.asset_data.catalog_id = catalog_id
+
+            for tag in tags:
+                mat.asset_data.tags.new(tag, skip_if_exists=True)
+
+            preview_image_path = data['albedo']
+            if mat and preview_image_path:
+                set_material_preview_with_operator(bpy.context, mat, preview_image_path)
+
+            mat_array.append(mat)
+
+        return mat_array
+
     def create_shaders_tree(self, folder_path):
         use_catalog_tree = bpy.context.scene.use_catalog_tree
         use_tags = bpy.context.scene.use_tags
+
         texture_naming_conventions = {
             "transmission": bpy.context.scene.transmission.split(' '),
             "albedo": bpy.context.scene.albedo.split(' '),
@@ -45,27 +71,24 @@ class CUSTOM_OT_GenerateShaderCatalog(bpy.types.Operator):
             "emission": bpy.context.scene.emission.split(' ')
         }
 
+        extensions_list = bpy.context.scene.file_type.split(' ')
+        extensions_tuple = tuple(['.' + ext for ext in extensions_list])
         settings = {
+            "file_types": extensions_tuple,
+            "resolution_priority": bpy.context.scene.resolution_priority,
+            "alt_col_handling": bpy.context.scene.alt_col_handling,
             "texture_setup": bpy.context.scene.default_texture_setup,
             "displacement_type": bpy.context.scene.texture_setup_displacement,
             "displacement_midlevel": bpy.context.scene.displacement_mid_level,
             "displacement_height": bpy.context.scene.displacement_height,
-            "gamma": bpy.context.scene.texture_setup_default_gamma
+            "gamma": bpy.context.scene.texture_setup_default_gamma,
+            "preview_type": bpy.context.scene.preview_type
         }
 
         folder_name = format_material_name(os.path.basename(folder_path))
         if folder_path.endswith('\\') or folder_path.endswith('/'):
             folder_name = format_material_name(os.path.basename(folder_path[:-1]))
-        formatted_name = format_material_name(folder_name)
-        data = create_material(formatted_name, texture_naming_conventions, settings, folder_path)
-        if data:
-            mat = data['material']
-            if mat:
-                mat.use_fake_user = True
-                mat.asset_mark()
-                preview_image_path = data['albedo']
-                if mat and preview_image_path:
-                    set_material_preview_with_operator(bpy.context, mat, preview_image_path)
+        self.create_assets(folder_name, folder_path, texture_naming_conventions, settings, None, [])
 
         for root, dirs, _ in os.walk(folder_path, topdown=True):
             if use_tags:
@@ -74,33 +97,11 @@ class CUSTOM_OT_GenerateShaderCatalog(bpy.types.Operator):
 
             for name in dirs:
                 path = os.path.join(root, name)
-                formatted_name = format_material_name(name)
-                data = create_material(formatted_name, texture_naming_conventions, settings, path)
-                if not data:
-                    continue
-                mat = data['material']
-                if not mat:
-                    continue
-
-                mat.use_fake_user = True
-                mat.asset_mark()
+                catalog_id = None
                 # Only modify blender_assets.cats.txt and set catalog_id if use_catalog_tree is True
                 if use_catalog_tree:
                     catalog_id = get_or_create_catalog(os.path.join(root, name), folder_path)
-                    if catalog_id:  # Ensure catalog_id is not None before assignment
-                        mat.asset_data.catalog_id = catalog_id
-
-                # Add tags from folder structure
-                if use_tags:
-                    for tag in tags:
-                        mat.asset_data.tags.new(tag, skip_if_exists=True)
-
-                preview_image_path = data['albedo']
-                if mat and preview_image_path:
-                    set_material_preview_with_operator(bpy.context, mat, preview_image_path)
-
-
-
+                self.create_assets(name, path, texture_naming_conventions, settings, catalog_id, tags)
 
 class CUSTOM_PT_GenerateCatalogsPanel(bpy.types.Panel):
     bl_label = "Octane Catalog Generator"
@@ -146,11 +147,15 @@ class CUSTOM_PT_GenerateCatalogsPanel(bpy.types.Panel):
 
         layout.label(text="Node Generation:")
         box = layout.box()
+        box.prop(scene, "file_type", text="File type and priority")
+        box.prop(scene, "resolution_priority", text="Priority")
+        box.prop(scene, "alt_col_handling", text="On multiple color maps")
         box.prop(scene, "default_texture_setup", text="If both available, use")
-        box.prop(scene, "texture_setup_displacement", text="Texture Setup Displacement")
+        box.prop(scene, "texture_setup_displacement", text="Setup Displacement")
         box.prop(scene, "displacement_mid_level", text="Displacement Mid Level")
         box.prop(scene, "displacement_height", text="Displacement Height")
-        box.prop(scene, "texture_setup_default_gamma", text="Texture Setup Default Gamma")
+        box.prop(scene, "texture_setup_default_gamma", text="Setup Gamma")
+        box.prop(scene, "preview_type", text="Preview Type")
 
         layout.separator()
 
@@ -214,9 +219,37 @@ def register_ui():
         description="Add space between words and numbers",
         default=True  # Checked by default
     )
+    bpy.types.Scene.file_type = StringProperty(
+        name="File Type and Priority",
+        default="jpg jpeg png exr hdr tiff tif",
+        description="File types to look for and their priority"
+    )
+    bpy.types.Scene.resolution_priority = EnumProperty(
+        name="Resolution Priority",
+        items=(
+            ('FileType', 'File type', 'Take first file type in the list'),
+            ('FileName', 'File name', 'Take first file name in the list'),
+            ("SmallerRes", "Smaller resolution", "Take the smaller resolution"),
+            ("BiggerRes", "Bigger resolution", "Take the bigger resolution"),
+        ),
+        default='SmallerRes',
+        description="Select the resolution priority when multiple files are found"
+    )
+    bpy.types.Scene.alt_col_handling = EnumProperty(
+        name="Alternative Color handling",
+        items=(
+            ("NewNode", "Create a disabled node", "Add a new node to the shader tree, but it's disabled"),
+            ("NewMaterial", "Create a new material", "Create a new material with the new color map"),
+            ("First", "Take the first one", "Use the first color map found"),
+            ("Last", "Take the last one", "Use the last color map found"),
+        ),
+        default='NewMaterial',
+        description="What happens when multiple color maps are found"
+    )
     bpy.types.Scene.default_texture_setup = EnumProperty(
         name="Shader's texture setup displacement",
         items=(
+            ("Both", "Both", "Setup node will use both Bump and Displacement nodes"),
             ("Bump", "Bump", "Setup node will use Bump node"),
             ("Displacement", "Displacement", "Setup node will use Displacement node"),
         ),
@@ -240,15 +273,25 @@ def register_ui():
     )
     bpy.types.Scene.displacement_mid_level = FloatProperty(
         name="Displacement Mid Level",
-        default=0.1,
+        default=0.05,
         min=0.0,
         description="When displacement is used, it'll use this mid level for all textures"
     )
     bpy.types.Scene.displacement_height = FloatProperty(
         name="Displacement Height",
-        default=0.1,
+        default=0.05,
         min=0.0,
         description="When displacement is used, it'll use this height for all textures"
+    )
+    bpy.types.Scene.preview_type = EnumProperty(
+        name="Preview Type",
+        items=(
+            ("NoPreview", "No preview (Fast)", "Don't set any preview image"),
+            ("UseColorMap", "Use color map (Fast)", "Use the first color map as preview image"),
+            ("Render", "Render (Slow)", "Render an image for the preview")
+        ),
+        default='Render',
+        description="How to set the preview image for the material"
     )
     bpy.types.Scene.transmission = StringProperty(
         name="Transmission",
@@ -320,9 +363,14 @@ def unregister_ui():
     del bpy.types.Scene.replace_by_space
     del bpy.types.Scene.add_space_by_caps
     del bpy.types.Scene.add_space_between_word_and_number
+    del bpy.types.Scene.file_type
+    del bpy.types.Scene.resolution_priority
     del bpy.types.Scene.default_texture_setup
     del bpy.types.Scene.texture_setup_displacement
+    del bpy.types.Scene.displacement_mid_level
+    del bpy.types.Scene.displacement_height
     del bpy.types.Scene.texture_setup_default_gamma
+    del bpy.types.Scene.preview_type
     del bpy.types.Scene.transmission
     del bpy.types.Scene.albedo
     del bpy.types.Scene.metallic

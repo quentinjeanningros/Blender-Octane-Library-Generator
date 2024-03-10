@@ -149,8 +149,7 @@ def match_files_to_keys(files, keys):
     return names_to_key_lists
 
 
-def fetch_files_at_path(path):
-    valid_extensions = ('.png', '.jpg', '.jpeg', '.exr', '.hdr', '.tiff')
+def fetch_files_at_path(path, valid_extensions):
     all_files = os.listdir(path)
     filtered_files = [
         file for file in all_files
