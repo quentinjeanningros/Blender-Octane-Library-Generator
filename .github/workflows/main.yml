@@ -21,7 +21,7 @@ jobs:
         uses: blenderkit/blender-addon-build@main
         with:
           name: sample-addon
-          exclude-files: ".git;.github;README.md"
+          exclude-files: ".git;.github;README.md;.gitignore;*auto_load.py;.vscode"
 
   Release:
     runs-on: ubuntu-latest
