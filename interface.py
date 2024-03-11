@@ -396,7 +396,7 @@ def register_ui():
     )
     bpy.types.Scene.opacity = StringProperty(
         name="Opacity",
-        default="alpha opacity",
+        default="alpha opacity mask",
         description="Naming Components for Alpha maps"
     )
     bpy.types.Scene.bump = StringProperty(
