@@ -8,10 +8,13 @@ from .utils.catalog import get_or_create_catalog, set_material_preview_with_oper
 from .utils.render import render_and_save
 
 class CUSTOM_OT_GenerateShaderCatalog(bpy.types.Operator):
+    # Metadata about this operator, including its identifier and label
     bl_idname = "custom.generate_catalogs"
     bl_label = "Generate Catalogs"
 
     def execute(self, context):
+        # Implementation of the operator's action.
+        # Checks for various preconditions (e.g., correct render engine, valid folder selection) before proceeding.
         if bpy.context.scene.render.engine != 'octane':
             self.report({'ERROR'}, "This addon requires the Octane render engine.")
             return {'CANCELLED'}
@@ -26,6 +29,7 @@ class CUSTOM_OT_GenerateShaderCatalog(bpy.types.Operator):
             self.report({'ERROR'}, "Selected folder is not valid.")
             return {'CANCELLED'}
 
+        # Additional checks for the 'Render' preview type, ensuring a valid object is selected for mockups.
         if bpy.context.scene.preview_type == 'Render':
             if not bpy.context.scene.object_mock:
                 self.report({'ERROR'}, "Please select an object to mock.")
@@ -54,11 +58,13 @@ class CUSTOM_OT_GenerateShaderCatalog(bpy.types.Operator):
             for tag in tags:
                 mat.asset_data.tags.new(tag, skip_if_exists=True)
 
+            # Sets up the material preview based on the provided settings.
             preview_image_path = data['albedo']
             if settings['preview_type'] == 'UseColorMap' and preview_image_path:
                 set_material_preview_with_operator(bpy.context, mat, preview_image_path)
 
             elif settings['preview_type'] == 'Render':
+                # For render previews, checks if a rerender is necessary and performs it if so.
                 preview_path = os.path.join(folder_path, "preview.png")
                 preview_exist = os.path.exists(preview_path)
                 if not preview_exist or bpy.context.scene.force_rerender:
@@ -79,6 +85,7 @@ class CUSTOM_OT_GenerateShaderCatalog(bpy.types.Operator):
         use_catalog_tree = bpy.context.scene.use_catalog_tree
         use_tags = bpy.context.scene.use_tags
 
+        # Extracts naming conventions from scene properties
         texture_naming_conventions = {
             "transmission": bpy.context.scene.transmission.split(' '),
             "albedo": bpy.context.scene.albedo.split(' '),
@@ -93,6 +100,7 @@ class CUSTOM_OT_GenerateShaderCatalog(bpy.types.Operator):
             "emission": bpy.context.scene.emission.split(' ')
         }
 
+        # Compiles material and rendering settings from scene properties
         extensions_list = bpy.context.scene.file_type.split(' ')
         extensions_tuple = tuple(['.' + ext for ext in extensions_list])
         settings = {
@@ -107,11 +115,13 @@ class CUSTOM_OT_GenerateShaderCatalog(bpy.types.Operator):
             "preview_type": bpy.context.scene.preview_type
         }
 
+        # Formats the folder name and initiates asset creation for the root folder
         folder_name = format_material_name(os.path.basename(folder_path))
         if folder_path.endswith('\\') or folder_path.endswith('/'):
             folder_name = format_material_name(os.path.basename(folder_path[:-1]))
         self.create_assets(folder_name, folder_path, texture_naming_conventions, settings, None, [])
 
+        # Iterates over subfolders to create assets, applying tags and possibly catalog IDs
         for root, dirs, _ in os.walk(folder_path, topdown=True):
             if use_tags:
                 relative_path = Path(root).relative_to(folder_path)
@@ -167,6 +177,7 @@ class CUSTOM_PT_GenerateCatalogsPanel(bpy.types.Panel):
 
         layout.separator()
 
+        # Draw the settings for node generation
         layout.label(text="Node Generation:")
         box = layout.box()
         box.prop(scene, "file_type", text="File type and priority")
@@ -180,6 +191,7 @@ class CUSTOM_PT_GenerateCatalogsPanel(bpy.types.Panel):
 
         layout.separator()
 
+        # Draw the settings for preview generation
         layout.label(text="Preview:")
         box = layout.box()
         box.prop(scene, "preview_type", text="Preview Type")
@@ -207,6 +219,7 @@ class CUSTOM_PT_GenerateCatalogsPanel(bpy.types.Panel):
         box.prop(scene, "emission")
 
         layout.separator()
+        layout.label(text="Warning: Start OctaneServer before")
 
         # Draw the button to generate catalogs
         row = layout.row()
@@ -216,8 +229,11 @@ class CUSTOM_PT_GenerateCatalogsPanel(bpy.types.Panel):
 def menu_func(self, _):
     self.layout.operator(CUSTOM_OT_GenerateShaderCatalog.bl_idname)
 
+# Definitions for UI panels and property groups, providing a graphical interface for the add-on's functionality
 
 def register_ui():
+    # Registers the operator and UI components with Blender, making them available to the user.
+    # Also defines custom properties that appear in the Blender UI, allowing users to configure the add-on's behavior.
     bpy.utils.register_class(CUSTOM_OT_GenerateShaderCatalog)
     bpy.utils.register_class(CUSTOM_PT_GenerateCatalogsPanel)
     bpy.types.Scene.selected_folder = StringProperty(subtype="DIR_PATH")
@@ -411,6 +427,8 @@ def register_ui():
     bpy.types.FILEBROWSER_MT_context_menu.append(menu_func)
 
 def unregister_ui():
+    # Unregisters the operator and UI components from Blender, cleaning up on add-on disable.
+    # Also removes the custom properties from the Blender UI.
     del bpy.types.Scene.selected_folder
     del bpy.types.Scene.use_catalog_tree
     del bpy.types.Scene.use_tags

@@ -5,6 +5,14 @@ from pathlib import Path
 from os import path
 
 def format_material_name(name):
+    """
+    Formats a material name based on various settings in the Blender scene.
+
+    This function applies several transformations to a given name string, including
+    replacing specified characters with spaces, adding spaces before capital letters,
+    and inserting spaces between words and numbers. The specific transformations applied
+    are determined by the user's settings in the Blender scene.
+    """
     scene = bpy.context.scene
 
     # Check if name formatting is enabled
@@ -150,6 +158,13 @@ def match_files_to_keys(files, keys):
 
 
 def fetch_files_at_path(path, valid_extensions):
+    """
+    Splits a filename into components for easier processing and classification.
+
+    This function removes file extensions and digits, separates CamelCase text, and
+    replaces common separators with spaces, effectively breaking down a filename into
+    its basic components for further processing.
+    """
     all_files = os.listdir(path)
     filtered_files = [
         file for file in all_files

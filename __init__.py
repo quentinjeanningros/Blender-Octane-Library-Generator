@@ -11,6 +11,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+# This block defines metadata about the Blender add-on, such as its name, author, description, and compatibility.
 bl_info = {
     "name": "Generate Catalogs",
     "author": "Quentin JEANNINROS",

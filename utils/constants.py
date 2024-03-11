@@ -1,3 +1,4 @@
+# Defines node types for Octane Render engine used in material creation
 OCTANE_NODE = {
   'UniversalMaterial': 'OctaneUniversalMaterial',
   'ImageTexture': 'OctaneRGBImage',
@@ -9,6 +10,7 @@ OCTANE_NODE = {
   'MultiplyTexture': 'OctaneMultiplyTexture',
 }
 
+# Defines socket names for the 'UniversalMaterial' node
 UNIVERSAL_MATERIAL_SOCKET = {
   'Transmission': 'Transmission',
   'Albedo': 'Albedo',
@@ -22,6 +24,7 @@ UNIVERSAL_MATERIAL_SOCKET = {
   'Emission': 'Emission',
 }
 
+# More constants for other node and socket types follow...
 TEXTURE_EMISSION_SOCKET = {
   'Texture': 'Texture',
   'Out': 'Emission out',
@@ -50,8 +53,10 @@ DISPLACEMENT_SOCKET = {
   'Out': 'Displacement out',
 }
 
+# Defines a constant gap used for arranging nodes visually in the Blender node editor
 GAP = 300
 
+# Defines default positions for each type of node in the node editor, ensuring a clean and organized node layout
 NODE_POSITION = {
   'MaterialOutput': (GAP, 0),
   '3DTransform': (-GAP*4, 50),
