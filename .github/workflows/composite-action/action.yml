@@ -50,23 +50,23 @@ runs:
       uses: actions/download-artifact@v3
       with:
         name: ${{ inputs.artifact_name }}
-        path: ./${{ inputs.artifact_name }}-v${{ inputs.version }}${{ env.RELEASE_SUFFIX }}
+        path: ./${{ inputs.artifact_name }}
 
     - name: Download artifact with repository name
       if: ${{ inputs.artifact_name == '' }}
       uses: actions/download-artifact@v3
       with:
         name: ${{ github.event.repository.name }}
-        path: ./${{ inputs.artifact_name }}-v${{ inputs.version }}${{ env.RELEASE_SUFFIX }}
+        path: ./${{ inputs.artifact_name }}
 
     - name: Zip contents of out
       shell: bash
       run: |
-        zip -r ./${{ inputs.artifact_name }}-v${{ inputs.version }}${{ env.RELEASE_SUFFIX }}/${{ inputs.artifact_name }}-v${{ inputs.version }}${{ env.RELEASE_SUFFIX }}.zip ./${{ inputs.artifact_name }}-v${{ inputs.version }}${{ env.RELEASE_SUFFIX }}/
+        zip -r ./${{ inputs.artifact_name }}/${{ inputs.artifact_name }}-v${{ inputs.version }}${{ env.RELEASE_SUFFIX }}.zip ./${{ inputs.artifact_name }}/
 
     - name: LS
       shell: bash
-      run: ls ./${{ inputs.artifact_name }}-v${{ inputs.version }}${{ env.RELEASE_SUFFIX }}
+      run: ls ./${{ inputs.artifact_name }}
 
     - name: Release
       uses: softprops/action-gh-release@v1
@@ -75,4 +75,4 @@ runs:
         name: ${{ env.RELEASE_NAME }} v${{ inputs.version }}${{ env.RELEASE_SUFFIX }}
         prerelease: ${{ inputs.release_stage != 'gold' && 'true' || 'false' }}
         tag_name: v${{inputs.version}}
-        files: ./${{ inputs.artifact_name }}-v${{ inputs.version }}${{ env.RELEASE_SUFFIX }}/${{ inputs.artifact_name }}-v${{ inputs.version }}${{ env.RELEASE_SUFFIX }}.zip
+        files: ./${{ inputs.artifact_name }}/${{ inputs.artifact_name }}-v${{ inputs.version }}${{ env.RELEASE_SUFFIX }}.zip
