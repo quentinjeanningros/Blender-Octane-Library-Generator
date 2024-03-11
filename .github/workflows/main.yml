@@ -1,2 +1,35 @@
-- name: Blender Addon Release
-  uses: BlenderKit/blender-addon-release@v0.1
+name: Release Workflow
+
+on:
+  pull_request:
+    branches: [ '**' ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'version'
+        required: true
+        default: '1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  Build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build addon
+        uses: blenderkit/blender-addon-build@main
+        with:
+          name: sample-addon
+          exclude-files: ".git;.github;README.md"
+
+  Release:
+    runs-on: ubuntu-latest
+    needs: Build
+    steps:
+      - name: Release addon
+        uses: blenderkit/blender-addon-release@main
+        with:
+          artifact_name: sample-addon
+          release_name: SampleAddon
+          version: ${{github.event.inputs.version}}
