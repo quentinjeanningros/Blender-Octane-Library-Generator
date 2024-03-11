@@ -21,14 +21,14 @@ jobs:
         uses: blenderkit/blender-addon-build@main
         with:
           name: blender-octane-library-generator
-          exclude-files: ".git;.github;README.md;.gitignore;*auto_load.py;.vscode;images"
+          exclude-files: ".git;.github;README.md;.gitignore;auto_load.py;.vscode;images"
 
   Release:
     runs-on: ubuntu-latest
     needs: Build
     steps:
       - name: Release addon
-        uses: blenderkit/blender-addon-release@main
+        uses: ./action
         with:
           artifact_name: blender-octane-library-generator
           release_name: BlenderOctaneLibraryGenerator
