@@ -28,7 +28,7 @@ jobs:
     needs: Build
     steps:
       - name: Release addon
-        uses: action.yml
+        uses: ./.github/workflows/action
         with:
           artifact_name: blender-octane-library-generator
           release_name: BlenderOctaneLibraryGenerator
