@@ -16,18 +16,18 @@ jobs:
       - name: Zip Repository
         run: |
           zip -r Blender-Octane-Library-Generator.zip . -x "*.git*"
-      
+
       - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
+        uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref }}
-          release_name: Blender-Octane-Library-Generator Release
+          name: Blender-Octane-Library-Generator ${{ github.ref }}
           draft: false
           prerelease: false
-      
+
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         env:
