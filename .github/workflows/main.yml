@@ -20,7 +20,7 @@ jobs:
       - name: Build addon
         uses: blenderkit/blender-addon-build@main
         with:
-          name: sample-addon
+          name: blender-octane-library-generator
           exclude-files: ".git;.github;README.md;.gitignore;*auto_load.py;.vscode"
 
   Release:
