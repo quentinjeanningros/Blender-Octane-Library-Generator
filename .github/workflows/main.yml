@@ -28,7 +28,6 @@ jobs:
     needs: Build
     steps:
       - name: Release addon
-        uses: actions/checkout@v2
         uses: ./.github/workflows/composite-action
         with:
           artifact_name: blender-octane-library-generator
