@@ -21,7 +21,7 @@ jobs:
         uses: blenderkit/blender-addon-build@main
         with:
           name: blender-octane-library-generator
-          exclude-files: ".git;.github;README.md;.gitignore;auto_load.py;images"
+          exclude-files: ".git;.github;README.md;.gitignore;auto_load.py;.vscode;images"
 
   Release:
     runs-on: ubuntu-latest
@@ -32,4 +32,4 @@ jobs:
         with:
           artifact_name: blender-octane-library-generator
           release_name: BlenderOctaneLibraryGenerator
-          version: ${{github.event.inputs.version}}Generator/files/14557960/blender-octane-library-generator.zip)
+          version: ${{github.event.inputs.version}}
