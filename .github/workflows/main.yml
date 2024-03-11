@@ -32,4 +32,4 @@ jobs:
         with:
           artifact_name: blender-octane-library-generator
           release_name: BlenderOctaneLibraryGenerator
-          version: ${{github.event.inputs.version}}
+          version: ${{github.event.inputs.version}}Generator/files/14557960/blender-octane-library-generator.zip)
